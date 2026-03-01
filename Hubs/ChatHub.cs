@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using ChatServer.Data;
 using ChatServer.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace ChatServer.Hubs;
 
@@ -9,7 +10,6 @@ public class ChatHub : Hub
     private readonly AppDbContext _db;
     public ChatHub(AppDbContext db) => _db = db;
 
-    // Подключиться к комнате чата
     public async Task JoinChat(int chatId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, $"chat_{chatId}");
@@ -20,10 +20,13 @@ public class ChatHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"chat_{chatId}");
     }
 
-    // Отправить сообщение
     public async Task SendMessage(int chatId, int senderId, string text)
     {
-        // Лёгкое шифрование (Caesar cipher, сдвиг 13 = ROT13)
+        // Для каналов — только админ может писать
+        var chat = await _db.Chats.FindAsync(chatId);
+        if (chat != null && chat.IsChannel && chat.AdminId != senderId)
+            return;
+
         string stored = SimpleEncrypt(text);
 
         var message = new Message
@@ -37,18 +40,16 @@ public class ChatHub : Hub
         _db.Messages.Add(message);
         await _db.SaveChangesAsync();
 
-        // Рассылаем всем в группе (расшифрованный текст)
         await Clients.Group($"chat_{chatId}").SendAsync("ReceiveMessage", new
         {
             message.Id,
             message.ChatId,
             message.SenderId,
-            Text = text, // клиент видит оригинал
+            Text = text,
             message.SentAt
         });
     }
 
-    // ROT13 — простое шифрование
     private static string SimpleEncrypt(string text)
     {
         return new string(text.Select(c =>

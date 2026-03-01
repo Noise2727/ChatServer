@@ -12,7 +12,6 @@ public class ChatController : ControllerBase
     private readonly AppDbContext _db;
     public ChatController(AppDbContext db) => _db = db;
 
-    // Получить все чаты пользователя
     [HttpGet("user/{userId}")]
     public async Task<IActionResult> GetUserChats(int userId)
     {
@@ -25,19 +24,20 @@ public class ChatController : ControllerBase
             {
                 m.Chat!.Id,
                 m.Chat.Name,
+                m.Chat.Description,
                 m.Chat.IsPrivate,
-                Members = m.Chat.Members.Select(x => new { x.UserId, x.User!.Username })
+                m.Chat.IsChannel,
+                m.Chat.AdminId,
+                Members = m.Chat.Members.Select(x => new { x.UserId, x.User!.Username, x.IsAdmin })
             })
             .ToListAsync();
 
         return Ok(chats);
     }
 
-    // Создать ЛС или группу
     [HttpPost("create")]
     public async Task<IActionResult> CreateChat([FromBody] CreateChatRequest req)
     {
-        // Если ЛС — проверить, не существует ли уже
         if (req.IsPrivate && req.MemberIds.Count == 2)
         {
             var existing = await _db.Chats
@@ -48,22 +48,28 @@ public class ChatController : ControllerBase
                     c.Members.Any(m => m.UserId == req.MemberIds[1]));
 
             if (existing != null)
-                return Ok(new { existing.Id, existing.Name, existing.IsPrivate });
+                return Ok(new { existing.Id, existing.Name, existing.IsPrivate, existing.IsChannel });
         }
 
         var chat = new Chat
         {
             Name = req.Name,
+            Description = req.Description,
             IsPrivate = req.IsPrivate,
-            Members = req.MemberIds.Select(id => new ChatMember { UserId = id }).ToList()
+            IsChannel = req.IsChannel,
+            AdminId = req.AdminId,
+            Members = req.MemberIds.Select((id, i) => new ChatMember
+            {
+                UserId = id,
+                IsAdmin = id == req.AdminId
+            }).ToList()
         };
 
         _db.Chats.Add(chat);
         await _db.SaveChangesAsync();
-        return Ok(new { chat.Id, chat.Name, chat.IsPrivate });
+        return Ok(new { chat.Id, chat.Name, chat.IsPrivate, chat.IsChannel });
     }
 
-    // История сообщений
     [HttpGet("{chatId}/messages")]
     public async Task<IActionResult> GetMessages(int chatId)
     {
@@ -89,6 +95,9 @@ public class ChatController : ControllerBase
 public class CreateChatRequest
 {
     public string Name { get; set; } = "";
+    public string? Description { get; set; }
     public bool IsPrivate { get; set; }
+    public bool IsChannel { get; set; }
+    public int? AdminId { get; set; }
     public List<int> MemberIds { get; set; } = new();
 }
