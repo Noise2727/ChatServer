@@ -5,9 +5,10 @@ public class Chat
     public int Id { get; set; }
     public string Name { get; set; } = "";
     public string? Description { get; set; }
-    public bool IsPrivate { get; set; }   // ЛС
-    public bool IsChannel { get; set; }   // Канал
-    public int? AdminId { get; set; }     // Создатель
+    public bool IsPrivate { get; set; }
+    public bool IsChannel { get; set; }
+    public bool IsPublic { get; set; }  // для поиска
+    public int? AdminId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public List<ChatMember> Members { get; set; } = new();
