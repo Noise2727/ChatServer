@@ -22,11 +22,11 @@ public class ChatHub : Hub
 
     public async Task SendMessage(int chatId, int senderId, string text)
     {
-        // Для каналов — только админ может писать
         var chat = await _db.Chats.FindAsync(chatId);
         if (chat != null && chat.IsChannel && chat.AdminId != senderId)
             return;
 
+        // Сохраняем зашифрованное в базу
         string stored = SimpleEncrypt(text);
 
         var message = new Message
@@ -40,12 +40,16 @@ public class ChatHub : Hub
         _db.Messages.Add(message);
         await _db.SaveChangesAsync();
 
+        var sender = await _db.Users.FindAsync(senderId);
+
+        // Отправляем ОРИГИНАЛЬНЫЙ текст через SignalR
         await Clients.Group($"chat_{chatId}").SendAsync("ReceiveMessage", new
         {
             message.Id,
             message.ChatId,
             message.SenderId,
-            Text = text,
+            Text = text, // оригинальный, не зашифрованный
+            SenderName = sender?.Nickname ?? sender?.Username ?? "",
             message.SentAt
         });
     }
