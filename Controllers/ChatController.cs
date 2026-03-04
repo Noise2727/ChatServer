@@ -11,26 +11,56 @@ public class ChatController : ControllerBase
 {
     private readonly AppDbContext _db;
     public ChatController(AppDbContext db) => _db = db;
-
     [HttpGet("user/{userId}")]
     public async Task<IActionResult> GetUserChats(int userId)
     {
         var chats = await _db.ChatMembers
             .Where(m => m.UserId == userId)
-            .Include(m => m.Chat).ThenInclude(c => c!.Members).ThenInclude(m => m.User)
-            .Select(m => new
+            .Include(m => m.Chat)
+                .ThenInclude(c => c!.Members)
+                .ThenInclude(m => m.User)
+            .Include(m => m.Chat)
+                .ThenInclude(c => c!.Messages)
+                .ThenInclude(m => m.Sender)
+            .ToListAsync();
+
+        var result = chats.Select(m =>
+        {
+            var lastMsg = m.Chat!.Messages.OrderByDescending(x => x.SentAt).FirstOrDefault();
+            return new
             {
-                m.Chat!.Id,
+                m.Chat.Id,
                 m.Chat.Name,
                 m.Chat.Description,
                 m.Chat.IsPrivate,
                 m.Chat.IsChannel,
                 m.Chat.IsPublic,
                 m.Chat.AdminId,
-                Members = m.Chat.Members.Select(x => new { x.UserId, x.User!.Username, x.User.Nickname, x.User.AvatarUrl, x.IsAdmin })
-            })
-            .ToListAsync();
-        return Ok(chats);
+                Members = m.Chat.Members.Select(x => new
+                {
+                    x.UserId,
+                    x.User!.Username,
+                    x.User.Nickname,
+                    x.User.AvatarUrl,
+                    x.IsAdmin
+                }),
+                LastMessage = lastMsg == null ? "" : SimpleDecrypt(lastMsg.Text),
+                LastMessageSender = lastMsg?.Sender?.Nickname ?? "",
+                LastMessageTime = lastMsg?.SentAt
+            };
+        });
+
+        return Ok(result);
+    }
+
+    private static string SimpleDecrypt(string text)
+    {
+        return new string(text.Select(c =>
+        {
+            if (c >= 'a' && c <= 'z') return (char)(((c - 'a' + 13) % 26) + 'a');
+            if (c >= 'A' && c <= 'Z') return (char)(((c - 'A' + 13) % 26) + 'A');
+            return c;
+        }).ToArray());
     }
 
     // Поиск публичных чатов и каналов
