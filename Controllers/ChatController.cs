@@ -144,9 +144,10 @@ public class ChatController : ControllerBase
         if (req.Name != null) chat.Name = req.Name;
         if (req.Description != null) chat.Description = req.Description;
         if (req.IsPublic.HasValue) chat.IsPublic = req.IsPublic.Value;
+        if (req.AvatarUrl != null) chat.AvatarUrl = req.AvatarUrl;
 
         await _db.SaveChangesAsync();
-        return Ok(new { chat.Id, chat.Name, chat.Description, chat.IsPublic });
+        return Ok(new { chat.Id, chat.Name, chat.Description, chat.IsPublic, chat.AvatarUrl });
     }
 
     // Покинуть чат
@@ -192,4 +193,10 @@ public class CreateChatRequest
     public List<int> MemberIds { get; set; } = new();
 }
 public class InviteRequest { public int UserId { get; set; } }
-public class UpdateChatRequest { public string? Name { get; set; } public string? Description { get; set; } public bool? IsPublic { get; set; } }
+public class UpdateChatRequest
+{
+    public string? Name { get; set; }
+    public string? Description { get; set; }
+    public bool? IsPublic { get; set; }
+    public string? AvatarUrl { get; set; }
+}
